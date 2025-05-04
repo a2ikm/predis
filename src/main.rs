@@ -1,6 +1,8 @@
 use std::io::prelude::*;
 use std::net::{TcpStream, TcpListener};
 
+mod resp;
+
 fn main() -> std::io::Result<()> {
     let listener = TcpListener::bind("127.0.0.1:6379")?;
 
