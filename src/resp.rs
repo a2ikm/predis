@@ -51,7 +51,7 @@ fn decode_value(bytes: &mut Bytes<&[u8]>) -> Result<Value, DecodeError> {
 }
 
 fn decode_simple_string(bytes: &mut Bytes<&[u8]>) -> Result<Value, DecodeError> {
-  let mut v: Vec<u8> = Vec::new();
+  let mut v = Vec::new();
   loop {
     match bytes.next() {
       Some(Ok(b'\r')) => {
