@@ -79,8 +79,8 @@ mod tests {
 
     #[test]
     fn test_decode_simple_string() {
-        let bytes = b"+OK\r\n";
-        let result = decode(bytes);
-        assert_eq!(result, Ok(Value::SimpleString(b"OK".to_vec())))
+      let bytes = b"+OK\r\n";
+      let result = decode(bytes);
+      assert_eq!(result, Ok(Value::SimpleString(b"OK".to_vec())))
     }
 }
