@@ -73,6 +73,26 @@ fn decode_simple_string(bytes: &mut Bytes<&[u8]>) -> Result<Value, DecodeError> 
   Ok(Value::SimpleString(v))
 }
 
+pub fn encode(value: &Value) -> Vec<u8> {
+  match value {
+    Value::SimpleString(bytes) => encode_simple_string(&bytes),
+  }
+}
+
+fn encode_simple_string(bytes: &Vec<u8>) -> Vec<u8> {
+  let mut v = Vec::new();
+  v.push(b'+');
+
+  for b in bytes {
+    v.push(*b);
+  }
+
+  v.push(b'\r');
+  v.push(b'\n');
+
+  v
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -82,5 +102,12 @@ mod tests {
       let bytes = b"+OK\r\n";
       let result = decode(bytes);
       assert_eq!(result, Ok(Value::SimpleString(b"OK".to_vec())))
+    }
+
+    #[test]
+    fn test_encode_simple_string() {
+      let value = Value::SimpleString(b"OK".to_vec());
+      let result = encode(&value);
+      assert_eq!(result, b"+OK\r\n".to_vec())
     }
 }
