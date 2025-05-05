@@ -29,12 +29,11 @@ fn handle_client(mut stream: TcpStream) {
 
 fn handle_request(request_buf: &[u8]) -> Vec<u8> {
     let request = match resp::decode(request_buf) {
-        Ok(value) => {
+        Some(value) => {
             value
         },
-        Err(e) => {
-            let msg = format!("decode error: {:?}", e);
-            return resp::encode(&resp::Value::SimpleString(msg.as_bytes().to_vec()))
+        None => {
+            return resp::encode(&resp::Value::SimpleString("NG".as_bytes().to_vec()))
         }
     };
 

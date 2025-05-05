@@ -1,82 +1,44 @@
-use std::{fmt, io::{Bytes, Read}};
-
 #[derive(Debug, PartialEq)]
 pub enum Value {
   SimpleString(Vec<u8>),
 }
 
-#[derive(Debug, PartialEq)]
-pub enum DecodeError {
-  IOError,
-  UnexpectedEOF,
-  UnexpectedType,
+pub fn decode(bytes: &[u8]) -> Option<Value> {
+  decode_value(bytes).map(|(value, _rest)| value)
 }
 
-impl fmt::Display for DecodeError {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match *self {
-          DecodeError::IOError => write!(f, "io error"),
-          DecodeError::UnexpectedEOF => write!(f, "unexpected eof"),
-          DecodeError::UnexpectedType => write!(f, "unexpected type"),
-        }
-    }
-}
+pub fn decode_value(bytes: &[u8]) -> Option<(Value, &[u8])> {
+  if bytes.is_empty() {
+    return None
+  }
 
-impl std::error::Error for DecodeError {
-    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-        None
-    }
-}
-
-pub fn decode(bytes: &[u8]) -> Result<Value, DecodeError> {
-  decode_value(&mut bytes.bytes())
-}
-
-fn decode_value(bytes: &mut Bytes<&[u8]>) -> Result<Value, DecodeError> {
-  match bytes.next() {
-    Some(Ok(b)) => {
-      match b {
-        b'+' => decode_simple_string(bytes),
-        _ => Err(DecodeError::UnexpectedType),
-      }
-    },
-    Some(Err(e)) => {
-      println!("decode_value error: {:?}", e);
-      Err(DecodeError::IOError)
-    },
-    None => {
-      Err(DecodeError::UnexpectedEOF)
+  match bytes[0] {
+    b'+' => decode_simple_string(&bytes[1..]),
+    _ => {
+      println!("unexpected type specifier: {:?}", bytes[0]);
+      None
     }
   }
 }
 
-fn decode_simple_string(bytes: &mut Bytes<&[u8]>) -> Result<Value, DecodeError> {
-  let mut v = Vec::new();
-  loop {
-    match bytes.next() {
-      Some(Ok(b'\r')) => {
-        bytes.next(); // drop LF(\n)
-        break;
-      },
-      Some(Ok(b)) => {
-        v.push(b);
-      },
-      Some(Err(e)) => {
-        println!("decode_simple_string error: {:?}", e);
-        return Err(DecodeError::IOError)
-      },
-      None => {
-        return Err(DecodeError::UnexpectedEOF)
-      }
-    }
-  }
-  Ok(Value::SimpleString(v))
+fn decode_simple_string(bytes: &[u8]) -> Option<(Value, &[u8])> {
+  // we may need to test if `b` is LF(\n) for RESP 3.0
+  let Some(end) = bytes.iter().position(|b| *b == b'\r') else {
+    println!("simple string is not terminated with CR");
+    return None
+  };
+
+  // TODO: ensure that bytes ends with CR and LF
+
+  let value = Value::SimpleString(bytes[..end].to_vec());
+  let rest = &bytes[(end+1)..]; // skip LF
+  Some((value, rest))
 }
 
 pub fn encode(value: &Value) -> Vec<u8> {
   match value {
     Value::SimpleString(bytes) => encode_simple_string(bytes),
-    _ => panic!("unsupported value"),
+    // _ => panic!("unsupported value"),
   }
 }
 
@@ -102,7 +64,7 @@ mod tests {
     fn test_decode_simple_string() {
       let bytes = b"+OK\r\n";
       let result = decode(bytes);
-      assert_eq!(result, Ok(Value::SimpleString(b"OK".to_vec())))
+      assert_eq!(result, Some(Value::SimpleString(b"OK".to_vec())))
     }
 
     #[test]
