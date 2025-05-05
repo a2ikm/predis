@@ -76,6 +76,7 @@ fn decode_simple_string(bytes: &mut Bytes<&[u8]>) -> Result<Value, DecodeError> 
 pub fn encode(value: &Value) -> Vec<u8> {
   match value {
     Value::SimpleString(bytes) => encode_simple_string(bytes),
+    _ => panic!("unsupported value"),
   }
 }
 
