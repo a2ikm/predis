@@ -89,6 +89,17 @@ fn decode_size(bytes: &[u8]) -> Option<(usize, &[u8])> {
     Some((size, rest))
 }
 
+#[test]
+fn test_decode_size() {
+    assert_eq!(decode_size(b""), None);
+    assert_eq!(decode_size(b"\r"), None);
+    assert_eq!(decode_size(b"\r\n"), None);
+    assert_eq!(decode_size(b"0"), None);
+    assert_eq!(decode_size(b"0\r\nrest"), Some((0usize, &b"rest"[..])));
+    assert_eq!(decode_size(b"1\r\nrest"), Some((1usize, &b"rest"[..])));
+    assert_eq!(decode_size(b"10\r\nrest"), Some((10usize, &b"rest"[..])));
+}
+
 fn split_with_crlf(bytes: &[u8]) -> Option<(&[u8], &[u8])> {
     // TODO: we may need to test if `b` is LF(\n) for RESP 3.0
 
@@ -100,6 +111,27 @@ fn split_with_crlf(bytes: &[u8]) -> Option<(&[u8], &[u8])> {
     let head = &bytes[..end];
     let rest = consume_crlf(&bytes[end..])?;
     Some((head, rest))
+}
+
+#[test]
+fn test_split_with_crlf() {
+    assert_eq!(split_with_crlf(b""), None);
+    assert_eq!(split_with_crlf(b"\r"), None);
+    assert_eq!(split_with_crlf(b"\r\n"), Some((&b""[..], &b""[..])));
+    assert_eq!(split_with_crlf(b"123\r\n"), Some((&b"123"[..], &b""[..])));
+    assert_eq!(split_with_crlf(b"\r\n456"), Some((&b""[..], &b"456"[..])));
+    assert_eq!(
+        split_with_crlf(b"123\r\n456"),
+        Some((&b"123"[..], &b"456"[..]))
+    );
+    assert_eq!(
+        split_with_crlf(b"123\r\n456\r\n789"),
+        Some((&b"123"[..], &b"456\r\n789"[..]))
+    );
+    assert_eq!(
+        split_with_crlf(b"123\r\n\r\n789"),
+        Some((&b"123"[..], &b"\r\n789"[..]))
+    );
 }
 
 fn consume_crlf(bytes: &[u8]) -> Option<&[u8]> {
@@ -177,38 +209,6 @@ mod tests {
         assert_eq!(
             decode(b"$4\r\na\r\nb\r\n"),
             Some(Value::BulkString(b"a\r\nb".to_vec()))
-        );
-    }
-
-    #[test]
-    fn test_decode_size() {
-        assert_eq!(decode_size(b""), None);
-        assert_eq!(decode_size(b"\r"), None);
-        assert_eq!(decode_size(b"\r\n"), None);
-        assert_eq!(decode_size(b"0"), None);
-        assert_eq!(decode_size(b"0\r\nrest"), Some((0usize, &b"rest"[..])));
-        assert_eq!(decode_size(b"1\r\nrest"), Some((1usize, &b"rest"[..])));
-        assert_eq!(decode_size(b"10\r\nrest"), Some((10usize, &b"rest"[..])));
-    }
-
-    #[test]
-    fn test_split_with_crlf() {
-        assert_eq!(split_with_crlf(b""), None);
-        assert_eq!(split_with_crlf(b"\r"), None);
-        assert_eq!(split_with_crlf(b"\r\n"), Some((&b""[..], &b""[..])));
-        assert_eq!(split_with_crlf(b"123\r\n"), Some((&b"123"[..], &b""[..])));
-        assert_eq!(split_with_crlf(b"\r\n456"), Some((&b""[..], &b"456"[..])));
-        assert_eq!(
-            split_with_crlf(b"123\r\n456"),
-            Some((&b"123"[..], &b"456"[..]))
-        );
-        assert_eq!(
-            split_with_crlf(b"123\r\n456\r\n789"),
-            Some((&b"123"[..], &b"456\r\n789"[..]))
-        );
-        assert_eq!(
-            split_with_crlf(b"123\r\n\r\n789"),
-            Some((&b"123"[..], &b"\r\n789"[..]))
         );
     }
 
