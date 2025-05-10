@@ -2,6 +2,7 @@
 pub enum Value {
     SimpleString(Vec<u8>),
     Array(Vec<Value>),
+    BulkString(Vec<u8>),
 }
 
 pub fn decode(bytes: &[u8]) -> Option<Value> {
@@ -23,6 +24,7 @@ pub fn decode_value(bytes: &[u8]) -> Option<(Value, &[u8])> {
     match bytes[0] {
         b'+' => decode_simple_string(&bytes[1..]),
         b'*' => decode_array(&bytes[1..]),
+        b'$' => decode_bulk_string(&bytes[1..]),
         _ => {
             println!("unexpected type specifier: {:?}", bytes[0]);
             None
@@ -58,6 +60,19 @@ fn decode_array(bytes: &[u8]) -> Option<(Value, &[u8])> {
     Some((value, rest))
 }
 
+fn decode_bulk_string(bytes: &[u8]) -> Option<(Value, &[u8])> {
+    let Some((size, rest)) = decode_size(bytes) else {
+        println!("bulkstring size is not given");
+        return None;
+    };
+
+    let string = rest[..size].to_vec();
+    let rest = consume_crlf(&rest[size..])?;
+
+    let value = Value::BulkString(string);
+    Some((value, rest))
+}
+
 fn decode_size(bytes: &[u8]) -> Option<(usize, &[u8])> {
     let (size_bytes, rest) = split_with_crlf(bytes)?;
 
@@ -77,24 +92,24 @@ fn decode_size(bytes: &[u8]) -> Option<(usize, &[u8])> {
 fn split_with_crlf(bytes: &[u8]) -> Option<(&[u8], &[u8])> {
     // TODO: we may need to test if `b` is LF(\n) for RESP 3.0
 
-    if bytes.len() < 2 {
-        println!("CRLF is not included");
-        return None;
-    }
-
-    let Some(cr) = bytes.iter().position(|b| *b == b'\r') else {
+    let Some(end) = bytes.iter().position(|b| *b == b'\r') else {
         println!("CR is not found");
         return None;
     };
 
-    if bytes[cr + 1] != b'\n' {
-        println!("LF is not found");
-        return None;
-    }
-
-    let head = &bytes[..cr];
-    let rest = &bytes[(cr + 2)..]; // skip CR+LF
+    let head = &bytes[..end];
+    let rest = consume_crlf(&bytes[end..])?;
     Some((head, rest))
+}
+
+fn consume_crlf(bytes: &[u8]) -> Option<&[u8]> {
+    // TODO: we may need to test if `b` is LF(\n) for RESP 3.0
+
+    if bytes.len() >= 2 && bytes[0] == b'\r' && bytes[1] == b'\n' {
+        Some(&bytes[2..]) // skip CR+LF
+    } else {
+        None
+    }
 }
 
 pub fn encode(value: &Value) -> Vec<u8> {
@@ -146,6 +161,22 @@ mod tests {
                 Value::SimpleString(b"OK".to_vec()),
                 Value::SimpleString(b"NG".to_vec())
             ]))
+        );
+
+        // BulkString
+        assert_eq!(decode(b"$"), None);
+        assert_eq!(decode(b"$0"), None);
+        assert_eq!(decode(b"$0\r"), None);
+        assert_eq!(decode(b"$0\n"), None);
+        assert_eq!(decode(b"$0\r\n"), None);
+        assert_eq!(decode(b"$0\r\n\r\n"), Some(Value::BulkString(b"".to_vec())));
+        assert_eq!(
+            decode(b"$1\r\na\r\n"),
+            Some(Value::BulkString(b"a".to_vec()))
+        );
+        assert_eq!(
+            decode(b"$4\r\na\r\nb\r\n"),
+            Some(Value::BulkString(b"a\r\nb".to_vec()))
         );
     }
 
