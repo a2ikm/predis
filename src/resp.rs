@@ -5,7 +5,14 @@ pub enum Value {
 }
 
 pub fn decode(bytes: &[u8]) -> Option<Value> {
-    decode_value(bytes).map(|(value, _rest)| value)
+    let (value, rest) = decode_value(bytes)?;
+
+    if !rest.is_empty() {
+        println!("malformed, rest = {:?}", rest);
+        return None;
+    }
+
+    Some(value)
 }
 
 pub fn decode_value(bytes: &[u8]) -> Option<(Value, &[u8])> {
@@ -116,15 +123,18 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_decode_simple_string() {
+    fn test_decode() {
+        // Malformed
+        assert_eq!(decode(b""), None);
+        assert_eq!(decode(b"+OK\r\n+OK\r\n"), None);
+
+        // SimpleString
         assert_eq!(
             decode(b"+OK\r\n"),
             Some(Value::SimpleString(b"OK".to_vec()))
-        )
-    }
+        );
 
-    #[test]
-    fn test_decode_array() {
+        // Array
         assert_eq!(decode(b"*0\r\n"), Some(Value::Array(vec![])));
         assert_eq!(
             decode(b"*1\r\n+OK\r\n"),
