@@ -1,6 +1,7 @@
 #[derive(Debug, PartialEq)]
 pub enum Value {
   SimpleString(Vec<u8>),
+  Array(Vec<Value>),
 }
 
 pub fn decode(bytes: &[u8]) -> Option<Value> {
@@ -14,6 +15,7 @@ pub fn decode_value(bytes: &[u8]) -> Option<(Value, &[u8])> {
 
   match bytes[0] {
     b'+' => decode_simple_string(&bytes[1..]),
+    b'*' => decode_array(&bytes[1..]),
     _ => {
       println!("unexpected type specifier: {:?}", bytes[0]);
       None
@@ -31,7 +33,29 @@ fn decode_simple_string(bytes: &[u8]) -> Option<(Value, &[u8])> {
   // TODO: ensure that bytes ends with CR and LF
 
   let value = Value::SimpleString(bytes[..end].to_vec());
-  let rest = &bytes[(end+1)..]; // skip LF
+  let rest = &bytes[(end+2)..]; // skip CR+LF
+  Some((value, rest))
+}
+
+fn decode_array(bytes: &[u8]) -> Option<(Value, &[u8])> {
+  let Some((size, bytes)) = decode_size(bytes) else {
+    println!("array size is not given");
+    return None
+  };
+
+  let mut rest = consume_crlf(bytes)?;
+  let mut values = Vec::with_capacity(size);
+  for i in 0..size {
+    println!("array loop: {:?}: {:?}", i, bytes);
+    let Some((item, rest2)) = decode_value(rest) else {
+      println!("failed to decode array item");
+      return None
+    };
+    values.push(item);
+    rest = rest2;
+  }
+
+  let value = Value::Array(values);
   Some((value, rest))
 }
 
@@ -57,10 +81,18 @@ fn decode_size(bytes: &[u8]) -> Option<(usize, &[u8])> {
   Some((size, rest))
 }
 
+fn consume_crlf(bytes: &[u8]) -> Option<&[u8]> {
+  if bytes.len() > 1 && bytes[0] == b'\r' && bytes[1] == b'\n' {
+    Some(&bytes[2..])
+  } else {
+    None
+  }
+}
+
 pub fn encode(value: &Value) -> Vec<u8> {
   match value {
     Value::SimpleString(bytes) => encode_simple_string(bytes),
-    // _ => panic!("unsupported value"),
+    _ => panic!("unsupported value"),
   }
 }
 
@@ -85,6 +117,13 @@ mod tests {
     #[test]
     fn test_decode_simple_string() {
       assert_eq!(decode(b"+OK\r\n"), Some(Value::SimpleString(b"OK".to_vec())))
+    }
+
+    #[test]
+    fn test_decode_array() {
+      assert_eq!(decode(b"*0\r\n"), Some(Value::Array(vec![])));
+      assert_eq!(decode(b"*1\r\n+OK\r\n"), Some(Value::Array(vec![Value::SimpleString(b"OK".to_vec())])));
+      assert_eq!(decode(b"*2\r\n+OK\r\n+NG\r\n"), Some(Value::Array(vec![Value::SimpleString(b"OK".to_vec()), Value::SimpleString(b"NG".to_vec())])));
     }
 
     #[test]
