@@ -1,5 +1,5 @@
 use std::io::prelude::*;
-use std::net::{TcpStream, TcpListener};
+use std::net::{TcpListener, TcpStream};
 
 mod resp;
 
@@ -10,7 +10,7 @@ fn main() {
         match stream {
             Ok(stream) => {
                 handle_client(stream);
-            },
+            }
             Err(e) => {
                 println!("connection error: {:?}", e);
             }
@@ -24,17 +24,15 @@ fn handle_client(mut stream: TcpStream) {
 
     let response_buf = handle_request(&request_buf);
 
-    stream.write_all(&response_buf).expect("response_buf should be written");
+    stream
+        .write_all(&response_buf)
+        .expect("response_buf should be written");
 }
 
 fn handle_request(request_buf: &[u8]) -> Vec<u8> {
     let request = match resp::decode(request_buf) {
-        Some(value) => {
-            value
-        },
-        None => {
-            return resp::encode(&resp::Value::SimpleString("NG".as_bytes().to_vec()))
-        }
+        Some(value) => value,
+        None => return resp::encode(&resp::Value::SimpleString("NG".as_bytes().to_vec())),
     };
 
     resp::encode(&request)
