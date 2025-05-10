@@ -38,12 +38,11 @@ fn decode_simple_string(bytes: &[u8]) -> Option<(Value, &[u8])> {
 }
 
 fn decode_array(bytes: &[u8]) -> Option<(Value, &[u8])> {
-  let Some((size, bytes)) = decode_size(bytes) else {
+  let Some((size, mut rest)) = decode_size(bytes) else {
     println!("array size is not given");
     return None
   };
 
-  let mut rest = consume_crlf(bytes)?;
   let mut values = Vec::with_capacity(size);
   for i in 0..size {
     println!("array loop: {:?}: {:?}", i, bytes);
@@ -66,7 +65,7 @@ fn decode_size(bytes: &[u8]) -> Option<(usize, &[u8])> {
   };
 
   let size_bytes = &bytes[..end];
-  let rest = &bytes[end..];
+  let rest = consume_crlf(&bytes[end..])?;
 
   let Ok(size_str) = std::str::from_utf8(size_bytes) else {
     println!("invalid UTF-8 sequence for size");
@@ -132,9 +131,9 @@ mod tests {
       assert_eq!(decode_size(b"\r"), None);
       assert_eq!(decode_size(b"\r\n"), None);
       assert_eq!(decode_size(b"0"), None);
-      assert_eq!(decode_size(b"0\r\nrest"), Some((0usize, &b"\r\nrest"[..])));
-      assert_eq!(decode_size(b"1\r\nrest"), Some((1usize, &b"\r\nrest"[..])));
-      assert_eq!(decode_size(b"10\r\nrest"), Some((10usize, &b"\r\nrest"[..])));
+      assert_eq!(decode_size(b"0\r\nrest"), Some((0usize, &b"rest"[..])));
+      assert_eq!(decode_size(b"1\r\nrest"), Some((1usize, &b"rest"[..])));
+      assert_eq!(decode_size(b"10\r\nrest"), Some((10usize, &b"rest"[..])));
     }
 
     #[test]
