@@ -24,16 +24,9 @@ pub fn decode_value(bytes: &[u8]) -> Option<(Value, &[u8])> {
 }
 
 fn decode_simple_string(bytes: &[u8]) -> Option<(Value, &[u8])> {
-  // we may need to test if `b` is LF(\n) for RESP 3.0
-  let Some(end) = bytes.iter().position(|b| *b == b'\r') else {
-    println!("simple string is not terminated with CR");
-    return None
-  };
+  let (string_bytes, rest) = split_with_crlf(bytes)?;
 
-  // TODO: ensure that bytes ends with CR and LF
-
-  let value = Value::SimpleString(bytes[..end].to_vec());
-  let rest = &bytes[(end+2)..]; // skip CR+LF
+  let value = Value::SimpleString(string_bytes.to_vec());
   Some((value, rest))
 }
 
@@ -59,13 +52,7 @@ fn decode_array(bytes: &[u8]) -> Option<(Value, &[u8])> {
 }
 
 fn decode_size(bytes: &[u8]) -> Option<(usize, &[u8])> {
-  let Some(end) = bytes.iter().position(|b| !b.is_ascii_digit()) else {
-    println!("ASCII digit sequence for size is not terminated");
-    return None
-  };
-
-  let size_bytes = &bytes[..end];
-  let rest = consume_crlf(&bytes[end..])?;
+  let (size_bytes, rest) = split_with_crlf(bytes)?;
 
   let Ok(size_str) = std::str::from_utf8(size_bytes) else {
     println!("invalid UTF-8 sequence for size");
@@ -80,12 +67,27 @@ fn decode_size(bytes: &[u8]) -> Option<(usize, &[u8])> {
   Some((size, rest))
 }
 
-fn consume_crlf(bytes: &[u8]) -> Option<&[u8]> {
-  if bytes.len() > 1 && bytes[0] == b'\r' && bytes[1] == b'\n' {
-    Some(&bytes[2..])
-  } else {
-    None
+fn split_with_crlf(bytes: &[u8]) -> Option<(&[u8], &[u8])> {
+  // TODO: we may need to test if `b` is LF(\n) for RESP 3.0
+
+  if bytes.len() < 2 {
+    println!("CRLF is not included");
+    return None
   }
+
+  let Some(cr) = bytes.iter().position(|b| *b == b'\r') else {
+    println!("CR is not found");
+    return None
+  };
+
+  if bytes[cr+1] != b'\n' {
+    println!("LF is not found");
+    return None
+  }
+
+  let head = &bytes[..cr];
+  let rest = &bytes[(cr+2)..]; // skip CR+LF
+  Some((head, rest))
 }
 
 pub fn encode(value: &Value) -> Vec<u8> {
@@ -134,6 +136,18 @@ mod tests {
       assert_eq!(decode_size(b"0\r\nrest"), Some((0usize, &b"rest"[..])));
       assert_eq!(decode_size(b"1\r\nrest"), Some((1usize, &b"rest"[..])));
       assert_eq!(decode_size(b"10\r\nrest"), Some((10usize, &b"rest"[..])));
+    }
+
+    #[test]
+    fn test_split_with_crlf() {
+      assert_eq!(split_with_crlf(b""), None);
+      assert_eq!(split_with_crlf(b"\r"), None);
+      assert_eq!(split_with_crlf(b"\r\n"), Some((&b""[..], &b""[..])));
+      assert_eq!(split_with_crlf(b"123\r\n"), Some((&b"123"[..], &b""[..])));
+      assert_eq!(split_with_crlf(b"\r\n456"), Some((&b""[..], &b"456"[..])));
+      assert_eq!(split_with_crlf(b"123\r\n456"), Some((&b"123"[..], &b"456"[..])));
+      assert_eq!(split_with_crlf(b"123\r\n456\r\n789"), Some((&b"123"[..], &b"456\r\n789"[..])));
+      assert_eq!(split_with_crlf(b"123\r\n\r\n789"), Some((&b"123"[..], &b"\r\n789"[..])));
     }
 
     #[test]
