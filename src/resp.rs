@@ -144,6 +144,16 @@ fn consume_crlf(bytes: &[u8]) -> Option<&[u8]> {
     }
 }
 
+#[test]
+fn test_consume_crlf() {
+    assert_eq!(consume_crlf(b""), None);
+    assert_eq!(consume_crlf(b"\r"), None);
+    assert_eq!(consume_crlf(b"\n"), None);
+    assert_eq!(consume_crlf(b"123\r\n"), None);
+    assert_eq!(consume_crlf(b"\r\n"), Some(&b""[..]));
+    assert_eq!(consume_crlf(b"\r\n456"), Some(&b"456"[..]));
+}
+
 pub fn encode(value: &Value) -> Vec<u8> {
     match value {
         Value::SimpleString(bytes) => encode_simple_string(bytes),
