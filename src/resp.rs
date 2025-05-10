@@ -35,6 +35,28 @@ fn decode_simple_string(bytes: &[u8]) -> Option<(Value, &[u8])> {
   Some((value, rest))
 }
 
+fn decode_size(bytes: &[u8]) -> Option<(usize, &[u8])> {
+  let Some(end) = bytes.iter().position(|b| !b.is_ascii_digit()) else {
+    println!("ASCII digit sequence for size is not terminated");
+    return None
+  };
+
+  let size_bytes = &bytes[..end];
+  let rest = &bytes[end..];
+
+  let Ok(size_str) = std::str::from_utf8(size_bytes) else {
+    println!("invalid UTF-8 sequence for size");
+    return None
+  };
+
+  let Ok(size) = size_str.parse::<usize>() else {
+    println!("failed to parse size string: {}", size_str);
+    return None
+  };
+
+  Some((size, rest))
+}
+
 pub fn encode(value: &Value) -> Vec<u8> {
   match value {
     Value::SimpleString(bytes) => encode_simple_string(bytes),
@@ -65,6 +87,17 @@ mod tests {
       let bytes = b"+OK\r\n";
       let result = decode(bytes);
       assert_eq!(result, Some(Value::SimpleString(b"OK".to_vec())))
+    }
+
+    #[test]
+    fn test_decode_size() {
+      assert_eq!(decode_size(b""), None);
+      assert_eq!(decode_size(b"\r"), None);
+      assert_eq!(decode_size(b"\r\n"), None);
+      assert_eq!(decode_size(b"0"), None);
+      assert_eq!(decode_size(b"0\r\nrest"), Some((0usize, &b"\r\nrest"[..])));
+      assert_eq!(decode_size(b"1\r\nrest"), Some((1usize, &b"\r\nrest"[..])));
+      assert_eq!(decode_size(b"10\r\nrest"), Some((10usize, &b"\r\nrest"[..])));
     }
 
     #[test]
