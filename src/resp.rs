@@ -43,18 +43,18 @@ fn decode_array(bytes: &[u8]) -> Option<(Value, &[u8])> {
         return None;
     };
 
-    let mut values = Vec::with_capacity(size);
+    let mut items = Vec::with_capacity(size);
     for i in 0..size {
         println!("array loop: {:?}: {:?}", i, bytes);
         let Some((item, rest2)) = decode_value(rest) else {
             println!("failed to decode array item");
             return None;
         };
-        values.push(item);
+        items.push(item);
         rest = rest2;
     }
 
-    let value = Value::Array(values);
+    let value = Value::Array(items);
     Some((value, rest))
 }
 
