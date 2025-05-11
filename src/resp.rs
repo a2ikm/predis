@@ -2,6 +2,7 @@
 pub enum Value {
     SimpleString(Vec<u8>),
     Error(Vec<u8>),
+    Integer(i64),
     Array(Vec<Value>),
     BulkString(Vec<u8>),
 }
@@ -27,6 +28,7 @@ pub fn decode_value(bytes: &[u8]) -> Option<(Value, &[u8])> {
     match bytes[0] {
         b'+' => decode_simple_string(rest),
         b'-' => decode_error(rest),
+        b':' => decode_integer(rest),
         b'*' => decode_array(rest),
         b'$' => decode_bulk_string(rest),
         _ => {
@@ -47,6 +49,23 @@ fn decode_error(bytes: &[u8]) -> Option<(Value, &[u8])> {
     let (string_bytes, rest) = split_with_crlf(bytes)?;
 
     let value = Value::Error(string_bytes.to_vec());
+    Some((value, rest))
+}
+
+fn decode_integer(bytes: &[u8]) -> Option<(Value, &[u8])> {
+    let (integer_bytes, rest) = split_with_crlf(bytes)?;
+
+    let Ok(integer_str) = std::str::from_utf8(integer_bytes) else {
+        println!("invalid UTF-8 sequence for integer");
+        return None;
+    };
+
+    let Ok(integer) = integer_str.parse::<i64>() else {
+        println!("failed to parse integer string: {}", integer_str);
+        return None;
+    };
+
+    let value = Value::Integer(integer);
     Some((value, rest))
 }
 
@@ -207,6 +226,11 @@ mod tests {
             decode(b"-ERR unknown command 'foobar'\r\n"),
             Some(Value::Error(b"ERR unknown command 'foobar'".to_vec()))
         );
+
+        // Integer
+        assert_eq!(decode(b":"), None);
+        assert_eq!(decode(b":\r\n"), None);
+        assert_eq!(decode(b":123\r\n"), Some(Value::Integer(123i64)));
 
         // Array
         assert_eq!(decode(b"*0\r\n"), Some(Value::Array(vec![])));
