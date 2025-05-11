@@ -1,6 +1,7 @@
 #[derive(Debug, PartialEq)]
 pub enum Value {
     SimpleString(Vec<u8>),
+    Error(Vec<u8>),
     Array(Vec<Value>),
     BulkString(Vec<u8>),
 }
@@ -25,6 +26,7 @@ pub fn decode_value(bytes: &[u8]) -> Option<(Value, &[u8])> {
 
     match bytes[0] {
         b'+' => decode_simple_string(rest),
+        b'-' => decode_error(rest),
         b'*' => decode_array(rest),
         b'$' => decode_bulk_string(rest),
         _ => {
@@ -38,6 +40,13 @@ fn decode_simple_string(bytes: &[u8]) -> Option<(Value, &[u8])> {
     let (string_bytes, rest) = split_with_crlf(bytes)?;
 
     let value = Value::SimpleString(string_bytes.to_vec());
+    Some((value, rest))
+}
+
+fn decode_error(bytes: &[u8]) -> Option<(Value, &[u8])> {
+    let (string_bytes, rest) = split_with_crlf(bytes)?;
+
+    let value = Value::Error(string_bytes.to_vec());
     Some((value, rest))
 }
 
@@ -191,6 +200,12 @@ mod tests {
         assert_eq!(
             decode(b"+OK\r\n"),
             Some(Value::SimpleString(b"OK".to_vec()))
+        );
+
+        // Error
+        assert_eq!(
+            decode(b"-ERR unknown command 'foobar'\r\n"),
+            Some(Value::Error(b"ERR unknown command 'foobar'".to_vec()))
         );
 
         // Array
