@@ -21,10 +21,12 @@ pub fn decode_value(bytes: &[u8]) -> Option<(Value, &[u8])> {
         return None;
     }
 
+    let rest = &bytes[1..];
+
     match bytes[0] {
-        b'+' => decode_simple_string(&bytes[1..]),
-        b'*' => decode_array(&bytes[1..]),
-        b'$' => decode_bulk_string(&bytes[1..]),
+        b'+' => decode_simple_string(rest),
+        b'*' => decode_array(rest),
+        b'$' => decode_bulk_string(rest),
         _ => {
             println!("unexpected type specifier: {:?}", bytes[0]);
             None
